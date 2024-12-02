@@ -6,7 +6,7 @@
     <img src="https://img.shields.io/static/v1?label=license&message=GPL&color=white&style=flat" alt="License"/>
 </p>
 
-SPA, is an advanced segmentation framework that efficiently adapts to diverse test-time preferences with minimal human interaction. By presenting users a select few, distinct segmentation candidates that best capture uncertainties, it reduces clinician workload in reaching the preferred segmentation. This method is elaborated on the paper [SPA: Efficient User-Preference Alignment against Uncertainty in Medical Image Segmentation](https://arxiv.org/abs/2411.15513). 
+SPA, is an advanced segmentation framework that efficiently adapts to diverse test-time preferences with minimal human interaction. By presenting users a select few, distinct segmentation candidates that best capture uncertainties, it reduces clinician workload in reaching the preferred segmentation. This method is elaborated on the paper [SPA: Efficient User-Preference Alignment against Uncertainty in Medical Image Segmentation](https://arxiv.org/abs/2411.15513) and [SPA webpage](https://supermedintel.github.io/SPA/). 
 
 ## ⚒️ Code is coming soon
 
