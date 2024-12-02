@@ -26,5 +26,4 @@ Our uncertainty-aware interactive segmentation model, SPA, efficiently achieves 
       doi = {10.48550/arXiv.2411.15513},
       year = {2024},
     }
-}
  ~~~
