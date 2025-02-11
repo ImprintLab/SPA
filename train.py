@@ -9,25 +9,15 @@ import argparse
 import os
 import sys
 import time
-from collections import OrderedDict
-from datetime import datetime
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
 from skimage import io
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score
 from tensorboardX import SummaryWriter
-#from dataset import *
-from torch.autograd import Variable
-from torch.utils.data import DataLoader, random_split
-from torch.utils.data.sampler import SubsetRandomSampler
-from tqdm import tqdm
-
+from torch.utils.data import DataLoader
 import cfg
 import function
 from conf import settings
@@ -48,27 +38,8 @@ if args.pretrain:
 net.EM_weights = EMWeights(n_components=16).to(GPUdevice)
 net.EM_mean_variance = EMMeanVariance(se_dim = 256, pe_dim = 256, n_components=16).to(GPUdevice)
 
-
-optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False) # old: weight_decay=0 # new: weight_decay=1e-4
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5) #learning rate decay  #old: step_size=10, gamma=0.5 #new: step_size=5, gamma=0.9
-
-'''load pretrained model'''
-if args.weights != 0:
-    print(f'=> resuming from {args.weights}')
-    assert os.path.exists(args.weights)
-    checkpoint_file = os.path.join(args.weights)
-    assert os.path.exists(checkpoint_file)
-    loc = 'cuda:{}'.format(args.gpu_device)
-    checkpoint = torch.load(checkpoint_file, map_location=loc)
-    start_epoch = checkpoint['epoch']
-    best_tol = checkpoint['best_tol']
-    
-    net.load_state_dict(checkpoint['state_dict'],strict=False)
-    # optimizer.load_state_dict(checkpoint['optimizer'], strict=False)
-
-    args.path_helper = checkpoint['path_helper']
-    logger = create_logger(args.path_helper['log_path'])
-    print(f'=> loaded checkpoint {checkpoint_file} (epoch {start_epoch})')
+optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False) 
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5) 
 
 args.path_helper = set_log_dir('logs', args.exp_name)
 logger = create_logger(args.path_helper['log_path'])
@@ -97,7 +68,6 @@ transform_test_seg = transforms.Compose([
 ])
 
 
-
 if args.dataset == 'REFUGE':
     '''REFUGE data'''
     refuge_train_dataset = REFUGE(args, args.data_path, transform = transform_train, mode = 'Training')
@@ -107,18 +77,13 @@ if args.dataset == 'REFUGE':
     nice_test_loader = DataLoader(refuge_test_dataset, batch_size=args.b, shuffle=False, num_workers=2, pin_memory=True)
     '''end'''
 
-
-
 '''checkpoint path and tensorboard'''
-# iter_per_epoch = len(Glaucoma_training_loader)
 checkpoint_path = os.path.join(settings.CHECKPOINT_PATH, args.net, settings.TIME_NOW)
 #use tensorboard
 if not os.path.exists(settings.LOG_DIR):
     os.mkdir(settings.LOG_DIR)
 writer = SummaryWriter(log_dir=os.path.join(
         settings.LOG_DIR, args.net, settings.TIME_NOW))
-# input_tensor = torch.Tensor(args.b, 3, 256, 256).cuda(device = GPUdevice)
-# writer.add_graph(net, Variable(input_tensor, requires_grad=True))
 
 #create checkpoint folder to save model
 if not os.path.exists(checkpoint_path):
@@ -126,16 +91,9 @@ if not os.path.exists(checkpoint_path):
 checkpoint_path = os.path.join(checkpoint_path, '{net}-{epoch}-{type}.pth')
 
 '''begain training'''
-best_acc = 0.0
-best_tol = 1e4
 best_dice = 0.0
 
-
-
 for epoch in range(settings.EPOCH):
-    # if epoch and epoch < 5:
-    #     tol, (eiou, edice) = function.validation_sam(args, nice_test_loader, epoch, net, writer)
-    #     logger.info(f'Total score: {tol}, IOU: {eiou}, DICE: {edice} || @ epoch {epoch}.')
         
     net.train()
     time_start = time.time()
@@ -145,32 +103,27 @@ for epoch in range(settings.EPOCH):
     print('time_for_training ', time_end - time_start)
 
     net.eval()
-    # if epoch and epoch % args.val_freq == 0 or epoch == settings.EPOCH-1:
     if epoch % args.val_freq == 0 or epoch == settings.EPOCH-1:
+
+        time_start = time.time()
         tol, (eiou, edice) = function.validation_sam(args, nice_test_loader, epoch, net, selected_rater_df_path=False)
         logger.info(f'Total score: {tol}, IOU: {eiou}, DICE: {edice} || @ epoch {epoch}.')
-        
+        time_end = time.time()
+        print('time_for_validation ', time_end - time_start)
 
-        if args.distributed != 'none':
-            sd = net.module.state_dict()
-        else:
-            sd = net.state_dict()
-
-        tol_ave = sum(tol) / len(tol)
         if  max(edice) > best_dice:
-        #if edice[-1] > best_dice:
-        # if tol_ave < best_tol:
             best_dice = max(edice)
-            best_tol = tol_ave
             is_best = True
 
             save_checkpoint({
             'epoch': epoch + 1,
             'model': args.net,
-            'state_dict': sd,
+            'state_dict': net.state_dict(),
             'optimizer': optimizer.state_dict(),
-            'best_tol': tol, #best_tol, 
             'path_helper': args.path_helper,
+            'EM_weights': net.EM_weights.weights,  
+            'EM_means': net.EM_mean_variance.means,  
+            'EM_variances': net.EM_mean_variance.variances,  
         }, is_best, args.path_helper['ckpt_path'], filename="best_checkpoint")
         else:
             is_best = False

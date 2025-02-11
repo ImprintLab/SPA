@@ -1,86 +1,43 @@
 
 import argparse
 import os
-import shutil
-import sys
-import tempfile
 import time
-from collections import OrderedDict
-from datetime import datetime
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
-import torchvision.transforms as transforms
-from einops import rearrange
-from monai.inferers import sliding_window_inference
-from monai.losses import DiceCELoss
-from monai.transforms import AsDiscrete
 from PIL import Image
 from skimage import io
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score
-from tensorboardX import SummaryWriter
-#from dataset import *
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import cfg
-import models.sam.utils.transforms as samtrans
-import pytorch_ssim
-#from models.discriminatorlayer import discriminator
-from conf import settings
 from utils import *
 import pandas as pd
 from sklearn.cluster import KMeans
 
-# from lucent.modelzoo.util import get_model_layers
-# from lucent.optvis import render, param, transform, objectives
-# from lucent.modelzoo import inceptionv1
 
 args = cfg.parse_args()
 
 GPUdevice = torch.device('cuda', args.gpu_device)
-pos_weight = torch.ones([1]).cuda(device=GPUdevice)*2
-criterion_G = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+criterion_G = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones([1]).cuda(device=GPUdevice)*2)
 seed = torch.randint(1,11,(args.b,7))
-
 torch.backends.cudnn.benchmark = True
-loss_function = DiceCELoss(to_onehot_y=True, softmax=True)
-scaler = torch.cuda.amp.GradScaler()
-max_iterations = settings.EPOCH
-post_label = AsDiscrete(to_onehot=14)
-post_pred = AsDiscrete(argmax=True, to_onehot=14)
-dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
-dice_val_best = 0.0
-global_step_best = 0
-epoch_loss_values = []
-metric_values = []
 
 def train_sam(args, net: nn.Module, optimizer, train_loader,
-          epoch, writer, schedulers=None, vis = 50):
-    hard = 0
+          epoch, writer, runs=6, vis = 50):
     epoch_loss = 0
     ind = 0
-    threshold = (0.1, 0.3, 0.5, 0.7, 0.9)
-    runs=6
+    
     num_sample = 48
     n_clusters = 4
 
     # train mode
     net.train()
     optimizer.zero_grad()
-
     GPUdevice = torch.device('cuda:' + str(args.gpu_device))
-
-    if args.thd:
-        lossfunc = DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    else:
-        lossfunc = criterion_G
+    lossfunc = criterion_G
 
     with tqdm(total=len(train_loader), desc=f'Epoch {epoch}', unit='img') as pbar:
         
@@ -88,7 +45,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
             imgs = pack['image'].to(dtype = torch.float32, device = GPUdevice)
 
             if 'multi_rater' in pack:
-                multi_rater = pack['multi_rater'].to(dtype = torch.float32, device = GPUdevice) # torch.Size([batch_size, num_rater, 1, img_size, img_size])
+                multi_rater = pack['multi_rater'].to(dtype = torch.float32, device = GPUdevice)
 
             if 'pt' in pack:
                 pt = pack['pt'].unsqueeze(1)
@@ -101,26 +58,24 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 
             name = pack['image_meta_dict']['filename_or_obj']
             
-            mask_type = torch.float32
             ind += 1
             b_size,c,w,h = imgs.size()
-            longsize = w if w >=h else h
                    
             coords_torch = torch.as_tensor(pt, dtype=torch.float, device=GPUdevice)
             labels_torch = torch.as_tensor(point_labels, dtype=torch.int, device=GPUdevice)
 
             '''init'''
-            imgs = imgs.to(dtype = mask_type,device = GPUdevice)            
+            imgs = imgs.to(dtype = torch.float32, device = GPUdevice)            
             weights = torch.tensor(net.EM_weights.weights, dtype=torch.float, device = GPUdevice)
-            pred_masks_weights_list = weights.unsqueeze(0).repeat(imgs.size(0), 1) # repeate with batch_size
+            pred_masks_weights_list = weights.unsqueeze(0).repeat(imgs.size(0), 1) 
             means = torch.tensor(net.EM_mean_variance.means, dtype=torch.float, device = GPUdevice)
             variances = torch.tensor(net.EM_mean_variance.variances, dtype=torch.float, device = GPUdevice)
-
             last_pred = None
 
+
             for run in range(runs):
-                masks = masks_all[:, run, :, :, :] # torch.Size([batch_size, 1, mask_size, mask_size])
-                masks_ori = masks_ori_all[:, run, :, :, :] # torch.Size([batch_size, 1, mask_size, mask_size])
+                masks = masks_all[:, run, :, :, :] 
+                masks_ori = masks_ori_all[:, run, :, :, :] 
 
                 
                 '''Train image encoder, combine net(inside image encoder), mask decoder'''
@@ -132,7 +87,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                     boxes=None,
                     masks=last_pred,
                 )
-                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) #torch.Size([1, 256, 16, 16]), positional encoding used to encode point prompts
+                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice)
 
                 # EM_mean_variance
                 for n, value in net.EM_mean_variance.named_parameters(): 
@@ -144,8 +99,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                     value.requires_grad = False
                 weights= net.EM_weights(pred_masks_weights_list)
                 weights = weights.mean(axis=0).to(device = GPUdevice)
-                weights /= weights.sum() # avoid 0.99999 not sum to 1
-
+                weights /= weights.sum() 
                 
                 # image encoder & combine net
                 for n, value in net.image_encoder.named_parameters(): 
@@ -163,7 +117,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 for i in range(len(imge_list)):
                     pred, _ = net.mask_decoder(
                         image_embeddings=imge_list[i],
-                        image_pe=pe, #net.prompt_encoder.get_dense_pe(), 
+                        image_pe=pe, 
                         sparse_prompt_embeddings=se,
                         dense_prompt_embeddings=de, 
                         multimask_output=(args.multimask_output > 1),
@@ -202,11 +156,10 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 optimizer.zero_grad()
 
 
-
                 # generate multiple options: from 2D to 1D
                 flattened_pred_list = [pred.detach().cpu().numpy().flatten() for pred in pred_list_image_size]  
                 kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init='auto').fit(flattened_pred_list)
-                target_group = kmeans.predict([masks_ori.cpu().numpy().flatten()])[0] # find which cluster the GT suits in                           
+                target_group = kmeans.predict([masks_ori.cpu().numpy().flatten()])[0] 
 
                 flag_select = (kmeans.labels_ == target_group)
                 exclusive_list = [single_imge for single_imge, flag in zip(pred_list_image_size, flag_select) if not flag]
@@ -215,8 +168,8 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 exclusive_list = torch.stack(exclusive_list, dim=0) 
                 exclusive_list_mean = torch.mean(exclusive_list, dim=0)
 
-                select_list = torch.stack(select_list, dim=0) #(num_select_img,batch_size,1,args.image_size, args.image_size)
-                select_list_mean = torch.mean(select_list, dim=0) #(batch_size,1,args.image_size, args.image_size))
+                select_list = torch.stack(select_list, dim=0) 
+                select_list_mean = torch.mean(select_list, dim=0) 
 
 
                 # find pt,label for training mean & variance
@@ -226,7 +179,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 for i in range(select_list_mean.size(0)):
 
                     flat_diff = torch.abs(select_list_mean[i,0]-exclusive_list_mean[i,0]).view(-1)
-                    top_values, top_indices = torch.topk(flat_diff, 20) # Get the indices of the top 20 differences #######
+                    top_values, top_indices = torch.topk(flat_diff, 20) 
 
                     top_2D_indices = [torch.tensor([(torch.div(index, select_list_mean.size(2), rounding_mode='floor')).item(), (index % select_list_mean.size(3)).item()]) for index in top_indices]
                     potential_selected = torch.stack(top_2D_indices, dim=0)  
@@ -262,7 +215,7 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                     boxes=None,
                     masks=last_pred,
                 )
-                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) #torch.Size([1, 256, 16, 16]), positional encoding used to encode point prompts
+                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) 
 
                 # EM_mean_variance
                 for n, value in net.EM_mean_variance.named_parameters(): 
@@ -276,12 +229,10 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 weights = weights.mean(axis=0).to(device = GPUdevice)
                 weights /= weights.sum() # avoid 0.99999 not sum to 1
 
-
                 # image encoder & combine net
                 for n, value in net.image_encoder.named_parameters(): 
                     value.requires_grad = False
                 imge_list = net.image_encoder(imgs, weights, means, variances, num_sample=num_sample)  
-
 
                 # mask decoder
                 for n, value in net.mask_decoder.named_parameters(): 
@@ -358,26 +309,21 @@ def train_sam(args, net: nn.Module, optimizer, train_loader,
                 optimizer.step()
                 optimizer.zero_grad()
 
-
             pbar.update()
 
     return epoch_loss/len(train_loader)
 
 
-def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_path = False):
+def validation_sam(args, val_loader, epoch, net: nn.Module, runs=6, selected_rater_df_path = False):
     # eval mode
     net.eval()
 
-    mask_type = torch.float32
     n_val = len(val_loader)  # the number of batch
-    ave_res, mix_res = (0,0,0,0), (0,0,0,0)
-    rater_res = [(0,0,0,0) for _ in range(6)]
-    tot = 0
     threshold = (0.1, 0.3, 0.5, 0.7, 0.9)
     GPUdevice = torch.device('cuda:' + str(args.gpu_device))
     device = GPUdevice
 
-    runs=6
+    
     num_sample = 48
     n_clusters = 4
 
@@ -385,21 +331,17 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
     total_eiou_list = np.zeros(runs)
     total_dice_list = np.zeros(runs)
 
-    if args.thd:
-        lossfunc = DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    else:
-        lossfunc = criterion_G
+    lossfunc = criterion_G
 
     with tqdm(total=n_val, desc='Validation round', unit='batch', leave=False) as pbar:
 
         for ind, pack in enumerate(val_loader):
-
             
             imgs = pack['image'].to(dtype = torch.float32, device = GPUdevice)
             name = pack['image_meta_dict']['filename_or_obj']
 
             if 'multi_rater' in pack:
-                multi_rater = pack['multi_rater'].to(dtype = torch.float32, device = GPUdevice) # torch.Size([batch_size, num_rater, 1, img_size, img_size])
+                multi_rater = pack['multi_rater'].to(dtype = torch.float32, device = GPUdevice) 
                 
             if selected_rater_df_path != False: 
                 selected_rater, masks_all, masks_ori_all = selected_rater_from_df(args, multi_rater, name, selected_rater_df_path, epoch)
@@ -422,7 +364,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
             labels_torch = torch.as_tensor(point_labels, dtype=torch.int, device=GPUdevice)
 
             '''init'''
-            imgs = imgs.to(dtype = mask_type,device = GPUdevice)
+            imgs = imgs.to(dtype = torch.float32, device = GPUdevice)
 
             weights = torch.tensor(net.EM_weights.weights, dtype=torch.float, device = GPUdevice)
             pred_masks_weights_list = weights.unsqueeze(0).repeat(imgs.size(0), 1) # repeate with batch_size
@@ -440,7 +382,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                     boxes=None,
                     masks=None,
                 )
-                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) #torch.Size([1, 256, 16, 16]), positional encoding used to encode point prompts
+                pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) 
                     
                 # EM_mean_variance
                 means, variances = net.EM_mean_variance(se, pe)
@@ -448,8 +390,8 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
 
 
             for run in range(runs):
-                masks = masks_all[:, run, :, :, :] # torch.Size([batch_size, 1, mask_size, mask_size])
-                masks_ori = masks_ori_all[:, run, :, :, :] # torch.Size([batch_size, 1, mask_size, mask_size])
+                masks = masks_all[:, run, :, :, :] 
+                masks_ori = masks_ori_all[:, run, :, :, :] 
                 # showp = coords_torch[:,run,:]
 
                 with torch.no_grad():
@@ -469,7 +411,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                     for i in range(len(imge_list)):
                         pred, _ = net.mask_decoder(
                             image_embeddings=imge_list[i],
-                            image_pe=pe, #net.prompt_encoder.get_dense_pe(), 
+                            image_pe=pe, 
                             sparse_prompt_embeddings=se,
                             dense_prompt_embeddings=de, 
                             multimask_output=(args.multimask_output > 1),
@@ -513,7 +455,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                         namecat = 'Test'
                         for na in name:
                             namecat = namecat + na + '+' #.split('/')[-1].split('.')[0] + '+'
-                        #vis_image(imgs,output,masks.clone(), os.path.join(args.path_helper['sample_path'], namecat+'epoch+' +str(epoch) + '+iteration+'+str(run+1)+ '.jpg'), reverse=False, points=showp)
+                        vis_image(imgs,output,masks.clone(), os.path.join(args.path_helper['sample_path'], namecat+'epoch+' +str(epoch) + '+iteration+'+str(run+1)+ '.jpg'), reverse=False, points=None)
 
 
 
@@ -533,8 +475,8 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                         temp_exclusive_list = torch.stack(temp_exclusive_list, dim=0) 
                         temp_exclusive_list_mean = torch.mean(temp_exclusive_list, dim=0)
                             
-                        temp_select_list = torch.stack(temp_select_list, dim=0) #(num_select_img,batch_size,1,args.image_size, args.image_size)
-                        temp_select_list_mean = torch.mean(temp_select_list, dim=0) #(batch_size,1,args.image_size, args.image_size))
+                        temp_select_list = torch.stack(temp_select_list, dim=0) 
+                        temp_select_list_mean = torch.mean(temp_select_list, dim=0) 
                         
                         plot_image = F.interpolate(temp_select_list_mean,size=(args.out_size,args.out_size))
                         plot_image = (plot_image> 0.5).float()
@@ -582,7 +524,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                         boxes=None,
                         masks=None,
                     )
-                    pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) #torch.Size([1, 256, 16, 16]), positional encoding used to encode point prompts
+                    pe = net.prompt_encoder.get_dense_pe().to(device = GPUdevice) 
                     
                     # EM_mean_variance
                     means, variances = net.EM_mean_variance(se, pe)
@@ -592,7 +534,7 @@ def validation_sam(args, val_loader, epoch, net: nn.Module, selected_rater_df_pa
                     for i in range(imgs.size(0)):
                         pred_masks_weights_list.append(net.EM_weights.compute_weights(
                             torch.flatten(final_select_list_mean[i]), weights, means, variances))
-                    pred_masks_weights_list = torch.stack(pred_masks_weights_list, dim=0) #(batch_size, n_components)
+                    pred_masks_weights_list = torch.stack(pred_masks_weights_list, dim=0) 
                         
 
             pbar.update()
