@@ -42,6 +42,7 @@ Python Version: 3.12.4
  ``python val.py -net sam -mod sam -exp_name 'val' -vis 1 -sam_ckpt CHECKPOINT_PATH -weights CHECKPOINT_PATH -image_size 512 -out_size 256 -b 1 -val_freq 1 -dataset REFUGE -data_path './data/REFUGE'``
 
 ## 🚨 News
+- 25-06-26. SPA is accepted by ICCV 🥳
 - 25-01-06. Code Uploaded 👩‍💻
 - 24-12-02. SPA's website was released 🤩
 
