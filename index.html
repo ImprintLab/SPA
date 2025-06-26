@@ -52,13 +52,13 @@
               <span class="author-block"></span>
                 Jiayuan Zhu<sup>*</sup>,</span>
               <span class="author-block">
-                Junde Wu<sup>*†</sup>,</span>
+                Junde Wu<sup>*</sup>,</span>
               <span class="author-block">
                 Cheng Ouyang,</span>
               <span class="author-block">
                 Konstantinos Kamnitsas,</span>
               <span class="author-block">
-                Alison Noble,</span>
+                J. Alison Noble</span>
             </div>
 
             <div class="is-size-4 publication-authors">
@@ -66,8 +66,7 @@
             </div>
 
             <div class="is-size-6 publication-authors">
-              <sup>*</sup>equal contribution, </span>
-              <sup>†</sup>project lead</span>
+              <sup>*</sup>equal contribution </span>
             </div>
 
             <div class="column has-text-centered">
@@ -136,12 +135,7 @@
         </div>
         <br>
         <h2 class=" subtitle has-text-centered">
-          Our uncertainty-aware interactive segmentation model, <b>SPA</b>, efficiently achieves 
-          preference-aligned segmentation by incorporating medical image uncertainties and human 
-          interactions. Clinicians are presented with one recommended prediction and a few distinct 
-          segmentation candidates that capture uncertainty, allowing them to select the one best 
-          aligned with their clinical needs. Our approach minimizes user interactions and eliminates the 
-          need for painstaking pixel-wise adjustments.
+          Our uncertainty-aware interactive segmentation model, <b>SPA</b>, efficiently achieves segmentations whose decisions on uncertain pixels are aligned with users preferences. This is achieved by modeling uncertainties and human interactions. At inference time, users are presented with one recommended prediction and a few representative segmentations that capture uncertainty, allowing users to select the one best aligned with their clinical needs. If the user is unsatisfied with the recommended prediction, the model learns from the users' selections, adapts itself, and presents users a new set of representative segmentations. Our approach minimizes user interactions and eliminates the need for painstaking pixel-wise adjustments compared to conventional interactive segmentation models.
         </h2>
       </div>
     </div>
@@ -154,28 +148,7 @@
         <div class="column is-four-fifths">
           <h2 class="title is-3">Abstract</h2>
           <div class="content has-text-justified">
-            Medical image segmentation data inherently contain uncertainty, often stemming from both 
-            imperfect image quality and variability in labeling preferences on ambiguous pixels, 
-            which depend on annotators' expertise and the clinical context of the annotations. 
-            For instance, a boundary pixel might be labeled as tumor in diagnosis to avoid 
-            under-assessment of severity, but as normal tissue in radiotherapy to prevent damage 
-            to sensitive structures. As segmentation preferences vary across downstream applications, 
-            it is often desirable for an image segmentation model to offer user-adaptable predictions
-            rather than a fixed output. While prior uncertainty-aware and interactive methods offer
-            adaptability, they are inefficient at test time: uncertainty-aware models require users
-            to choose from numerous similar outputs, while interactive models demand significant user 
-            input through click or box prompts to refine segmentation. To address these challenges, 
-            we propose <b>SPA</b>, a segmentation framework that efficiently adapts to diverse 
-            test-time preferences with minimal human interaction. By presenting users a select few, 
-            distinct segmentation candidates that best capture uncertainties, it reduces clinician 
-            workload in reaching the preferred segmentation. To accommodate user preference, we 
-            introduce a probabilistic mechanism that leverages user feedback to adapt model's 
-            segmentation preference. The proposed framework is evaluated on a diverse range of 
-            medical image segmentation tasks: color fundus images, CT, and MRI. It demonstrates 
-            1) a significant reduction in clinician time and effort compared with existing 
-            interactive segmentation approaches, 2) strong adaptability based on human feedback, 
-            and 3) state-of-the-art image segmentation performance across diverse modalities and semantic labels.
-
+            Medical image segmentation data inherently contain uncertainty. This can stem from both imperfect image quality and variability in labeling preferences on ambiguous pixels, which depend on annotator expertise and the clinical context of the annotations. For instance, a boundary pixel might be labeled as tumor in diagnosis to avoid under-estimation of severity, but as normal tissue in radiotherapy to prevent damage to sensitive structures. As segmentation preferences vary across downstream applications, it is often desirable for an image segmentation model to offer user-adaptable predictions rather than a fixed output. While prior uncertainty-aware and interactive methods offer adaptability, they are inefficient at test time: uncertainty-aware models require users to choose from numerous similar outputs, while interactive models demand significant user input through click or box prompts to refine segmentation. To address these challenges, we propose <b>SPA</b>, a new <b>S</b>egmentation <b>P</b>reference <b>A</b>lignment framework that efficiently adapts to diverse test-time preferences with minimal human interaction. By presenting users with a select few, distinct segmentation candidates that best capture uncertainties, it reduces the user workload to reach the preferred segmentation. To accommodate user preference, we introduce a probabilistic mechanism that leverages user feedback to adapt a model's segmentation preference. The proposed framework is evaluated on several medical image segmentation tasks: color fundus images, lung lesion and kidney CT scans, MRI scans of brain and prostate. SPA shows 1) a significant reduction in user time and effort compared to existing interactive segmentation approaches, 2) strong adaptability based on human feedback, and 3) state-of-the-art image segmentation performance across different imaging modalities and semantic labels.
           </div>
         </div>
       </div>
