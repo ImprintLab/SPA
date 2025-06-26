@@ -10,7 +10,7 @@ SPA, is an advanced segmentation framework that efficiently adapts to diverse te
 
 ## 🔥 A Quick Overview 
  <div align="center"><img width="880" height="400" src="https://github.com/SuperMedIntel/SPA/blob/main/static/assets/images/facial.png"></div>
-Our uncertainty-aware interactive segmentation model, SPA, efficiently achieves preference-aligned segmentation by incorporating medical image uncertainties and human interactions. Clinicians are presented with one recommended prediction and a few distinct segmentation candidates that capture uncertainty, allowing them to select the one best aligned with their clinical needs. If the user is unsatisfied with the recommended prediction, the model learns from the user selection, adapts itself, and presents users a new set of candidates. Our approach minimizes user interactions and eliminates the need for painstaking pixel-wise adjustments compared to conventional interactive segmentation models.
+Our uncertainty-aware interactive segmentation model, <b>SPA</b>, efficiently achieves segmentations whose decisions on uncertain pixels are aligned with users preferences. This is achieved by modeling uncertainties and human interactions. At inference time, users are presented with one recommended prediction and a few representative segmentations that capture uncertainty, allowing users to select the one best aligned with their clinical needs. If the user is unsatisfied with the recommended prediction, the model learns from the users' selections, adapts itself, and presents users a new set of representative segmentations. Our approach minimizes user interactions and eliminates the need for painstaking pixel-wise adjustments compared to conventional interactive segmentation models.
 
 ## 🧐 Requirement
 
@@ -44,7 +44,7 @@ Python Version: 3.12.4
 ## 🚨 News
 - 25-06-26. SPA is accepted by ICCV 🥳
 - 25-01-06. Code Uploaded 👩‍💻
-- 24-12-02. SPA's website was released 🤩
+- 24-12-02. SPA's website is released 🤩
 
 ## 📝 Cite
  ~~~
